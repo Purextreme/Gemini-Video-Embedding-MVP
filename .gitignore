@@ -1,0 +1,23 @@
+# API Keys and Secrets
+.env
+
+# Video Data
+test_video/
+test_video_720/
+
+# Executables and Large Binaries
+windows-x64/
+*.exe
+*.tar.gz
+
+# Temporary Debug/Fix Scripts
+fix_*.py
+test_*.py
+upload_*.py
+debug_api.py
+restore_skill.py
+check_api.py
+
+# Python Cache
+__pycache__/
+*.py[cod]
