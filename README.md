@@ -1,87 +1,80 @@
-# 视频素材语义搜索与聚类测试
+# Gemini Video Embedding MVP
 
-> **验证结论：Gemini-embedding-2 配合 HDBSCAN 算法能实现语义检索，能通过语义聚类实现素材库的自动化整理。**
+本项目是一个本地素材语义搜索 MVP。用户可以为不同素材目录创建独立项目，分别生成图片/视频 embedding，并在 Streamlit 前端中按语义搜索素材。
 
-> **💡本项目基于 Gemini CLI 实现，本文档由 Gemini CLI 自己编写。**
+## 功能
 
----
+- 多项目素材库，每个项目绑定一个本地素材目录。
+- 每个项目独立保存 `index.json`、`vectors.npy`、`thumbnails/`、`previews/`。
+- 支持图片和视频扫描、增量索引、缩略图生成。
+- 视频会先生成 `adaptive_32frame_preview`，再提交给 Gemini embedding。
+- 搜索结果按 cosine similarity 排序，可筛选图片/视频。
+- Windows 下支持 Reveal in Explorer，定位原始素材文件。
+- 聚类整理脚本不再接入主流程。
 
-## 🚀 核心实验结果
+## 安装
 
-通过对 22 个单镜头素材的深度测试，验证了以下功能：
-- **语义检索**: 延续了 MVP 版本的 100% 命中率，相似度区间在 0.35 - 0.50 之间。
-- **语义聚类**: 成功将素材自动划分为 **6 个语义簇** + 1 个杂质组。
-- **自动打标精度**: AI 生成的 `主体_场景_物件_氛围` 四维标签与素材内容匹配。
+建议在虚拟环境中安装依赖：
 
----
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-## 🛠️ 技术实现流程
+安装 `ffmpeg` 并确保 `ffmpeg`、`ffprobe` 在 `PATH` 中可用。视频缩略图和 preview 依赖它们。
 
-1.  **视频向量化 (Gemini Embedding 2)**: 使用 `generate_embeddings.py` 将视频转化为 3072 维的高维特征向量。
-2.  **语义检索**: 使用 `search_video.py` 进行余弦相似度计算，支持自然语言搜索。
-3.  **智能聚类 (HDBSCAN)**: 
-    *   通过密度聚类算法自动识别素材关联性，无需预设分类数。
-    *   识别并剔除离群素材（Noise），归入 `Others` 文件夹。
-4.  **自动归档命名 (Gemini 3.1 Flash Lite)**: 
-    *   计算每个簇的几何重心，抽取代表性视频。
-    *   利用 Gemini 3.1 进行画面分析并自动生成组合关键词文件夹名。
+## 配置
 
----
+复制 `.env.example` 为 `.env`，填入 Gemini API key：
 
-## 🖼️ 素材库预览 (Thumbnails)
+```env
+GEMINI_API_KEY=your_api_key_here
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
 
-以下是本项目测试所使用的 22 个单镜头素材预览：
+HTTP_PROXY=
+HTTPS_PROXY=
+```
 
-| | | | |
-| :---: | :---: | :---: | :---: |
-| ![01](thumbnails/01.jpg) | ![02](thumbnails/02.jpg) | ![03_1](thumbnails/03_1.jpg) | ![07_1](thumbnails/07_1.jpg) |
-| ![09](thumbnails/09.jpg) | ![10](thumbnails/10.jpg) | ![11](thumbnails/11.jpg) | ![14](thumbnails/14.jpg) |
-| ![15](thumbnails/15.jpg) | ![17](thumbnails/17.jpg) | ![22](thumbnails/22.jpg) | ![25](thumbnails/25.jpg) |
-| ![30](thumbnails/30.jpg) | ![31](thumbnails/31.jpg) | ![电量不足](thumbnails/电量不足.jpg) | ![IMG_1284](thumbnails/IMG_1284.jpg) |
+兼容旧变量名 `GOOGLE_API_KEY`。如果需要代理，填写 `HTTP_PROXY` 和 `HTTPS_PROXY`。
 
----
+## 启动
 
-## 🔍 检索案例展示
+```powershell
+streamlit run streamlit_app.py
+```
 
-| 检索指令 (Query) | 匹配视频 (Top-1) | 相似度 | 画面内容 |
-| :--- | :--- | :--- | :---: |
-| 一个小女孩在公园吹泡泡 | `IMG_1284.mp4` | 0.4422 | ![IMG_1284](thumbnails/IMG_1284.jpg) |
-| 一个小女孩在玩捉迷藏 | `IMG_1332.mp4` | 0.4192 | ![IMG_1332](thumbnails/IMG_1332.jpg) |
-| 一个直播演员正在直播，演员是男性，正面面对镜头 | `22.mp4` | 0.3573 | ![22](thumbnails/22.jpg) |
-| 一个拿着笔记本电脑的女性在办公室内行走 | `03_1.mp4` | 0.3994 | ![03_1](thumbnails/03_1.jpg) |
-| 一只手把硬盘推入桌面上的NAS | `25.mp4` | 0.4889 | ![25](thumbnails/25.jpg) |
-| 公园的板凳上放着无人机、遥控器、充电宝 | `14.mp4` | 0.4786 | ![14](thumbnails/14.jpg) |
+## 使用流程
 
----
+1. 在侧边栏创建项目：输入项目名称、素材目录路径，并选择是否包含子目录。
+2. 在项目下拉框中选择当前项目。
+3. 点击“开始 / 更新索引”。
+4. 在搜索框输入中文或英文语义描述。
+5. 选择全部、图片或视频筛选。
+6. 查看缩略图、相似度、相对路径和原始路径。
+7. 点击 Reveal in Explorer 在 Windows Explorer 中选中原始素材。
 
-## 📂 语义聚类归档案例 (New)
+## 数据目录
 
-通过运行 `cluster_videos.py`，系统自动生成的目录结构如下：
+全局项目列表：
 
-| 自动生成的文件夹名 (语义标签) | 包含素材数 | 代表素材预览 | 归类逻辑描述 |
-| :--- | :---: | :---: | :--- |
-| **女孩_公园_泡泡棒_玩耍** | 2 | ![IMG_1284](thumbnails/IMG_1284.jpg) | 成功提取出“泡泡棒”等细节，避开了乱码文件名的干扰。 |
-| **职场女性_办公空间_笔记本电脑_高效商务** | 3 | ![03_1](thumbnails/03_1.jpg) | 准确归类了所有职场女性相关的办公素材。 |
-| **无人机_户外_充电宝_低电量续航** | 6 | ![14](thumbnails/14.jpg) | 识别了无人机主体，并结合文件名提取了“续航/电量”功能点。 |
-| **电脑主机_工作室_机箱_科技感** | 3 | ![01](thumbnails/01.jpg) | 成功识别出了产品和“科技感”氛围。 |
-| **年轻女性_室内办公空间_手机_演示无线投屏** | 2 | ![02](thumbnails/02.jpg) | 极其精准地捕捉到了“无线投屏”这一核心动作语义。 |
-| **Others (杂质类)** | 4 | - | 自动剔除了画面特征不明显的转场或无关镜头。 |
+```text
+app_data/projects.json
+```
 
----
+每个项目的独立缓存：
 
-## 🚀 项目结构与使用
+```text
+app_data/projects/<project_id>/
+  project.json
+  index.json
+  vectors.npy
+  thumbnails/
+  previews/
+```
 
-- `generate_embeddings.py`: 视频向量化核心脚本。
-- `search_video.py`: 语义检索脚本。
-- `cluster_videos.py`: **(New)** 语义聚类与自动归档归脚本。
-- `convert_videos.py`: 视频批量转码工具（推荐先转为 720p 再运行）。
-- `embeddings.json`: 视频特征数据库。
+`previews/` 只保存用于 Gemini embedding 的视频 preview，不是原始素材。`thumbnails/` 只用于前端展示。清空或删除项目索引不会删除原始素材文件。
 
-### 快速开始
-1. 配置 `.env` 中的 `GOOGLE_API_KEY`。
-2. 运行 `python generate_embeddings.py` 生成特征。
-3. 运行 `python cluster_videos.py` 完成自动归档。
+## 旧脚本
 
----
-## 💡 项目意义
-对于视频设计师，本工具将素材整理从“体力劳动”变为“指令自动化”。它不仅能帮你找到素材，更能帮你从逻辑上重构素材库，极大地释放了创作精力。
+根目录下的 `generate_embeddings.py`、`search_video.py`、`convert_videos.py`、`cluster_videos.py` 是早期 CLI 实验脚本。当前主流程入口是 `streamlit_app.py`，聚类功能不再出现在主流程中。

@@ -1,0 +1,7 @@
+google-genai
+numpy
+python-dotenv
+streamlit
+pillow
+opencv-python
+tqdm
