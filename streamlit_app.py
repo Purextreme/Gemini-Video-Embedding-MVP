@@ -11,6 +11,59 @@ from app.searcher import search_assets
 st.set_page_config(page_title="本地素材语义搜索", layout="wide")
 
 
+def select_folder_dialog(initial_path: str = "") -> str | None:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise RuntimeError("当前环境无法打开文件夹选择对话框") from exc
+
+    initial_dir = Path(initial_path).expanduser() if initial_path.strip() else Path.home()
+    if initial_dir.is_file():
+        initial_dir = initial_dir.parent
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        options = {"title": "选择素材目录"}
+        if initial_dir.exists():
+            options["initialdir"] = str(initial_dir)
+        selected = filedialog.askdirectory(**options)
+        return selected or None
+    finally:
+        root.destroy()
+
+
+def set_project_name_from_root_path() -> None:
+    root_path = st.session_state.get("create_root_path", "").strip()
+    if not root_path or not st.session_state.get("create_project_name_auto", True):
+        return
+
+    folder_name = Path(root_path).name
+    if folder_name:
+        st.session_state["create_project_name"] = folder_name
+
+
+def mark_project_name_manual() -> None:
+    st.session_state["create_project_name_auto"] = False
+
+
+def choose_project_root_path() -> None:
+    st.session_state.pop("folder_dialog_error", None)
+    try:
+        selected = select_folder_dialog(st.session_state.get("create_root_path", ""))
+    except Exception as exc:
+        st.session_state["folder_dialog_error"] = str(exc)
+        return
+
+    if not selected:
+        return
+
+    st.session_state["create_root_path"] = selected
+    set_project_name_from_root_path()
+
+
 def refresh_projects() -> list[dict]:
     projects = list_projects()
     st.session_state["projects"] = projects
@@ -54,17 +107,37 @@ def render_project_status(project: dict) -> None:
 
 
 def render_create_project() -> None:
-    with st.form("create_project_form", clear_on_submit=True):
-        name = st.text_input("项目名称")
-        root_path = st.text_input("素材目录路径")
-        recursive = st.checkbox("包含子目录", value=True)
-        submitted = st.form_submit_button("创建项目")
+    if st.session_state.pop("clear_create_project_fields", False):
+        st.session_state["create_project_name"] = ""
+        st.session_state["create_root_path"] = ""
+        st.session_state["create_project_name_auto"] = True
 
-    if submitted:
+    st.session_state.setdefault("create_project_name", "")
+    st.session_state.setdefault("create_root_path", "")
+    st.session_state.setdefault("create_project_name_auto", True)
+
+    name = st.text_input(
+        "项目名称",
+        key="create_project_name",
+        help="选择素材目录后会自动使用文件夹名，可手动修改。",
+        on_change=mark_project_name_manual,
+    )
+    root_path = st.text_input(
+        "素材目录路径",
+        key="create_root_path",
+        on_change=set_project_name_from_root_path,
+    )
+    st.button("选择文件夹", use_container_width=True, on_click=choose_project_root_path)
+    if st.session_state.get("folder_dialog_error"):
+        st.error(st.session_state["folder_dialog_error"])
+
+    recursive = st.checkbox("包含子目录", value=True)
+    if st.button("创建项目"):
         try:
             project = create_project(name, root_path, recursive)
             st.session_state["selected_project_id"] = project["project_id"]
             st.session_state["search_results"] = []
+            st.session_state["clear_create_project_fields"] = True
             refresh_projects()
             st.success("项目已创建")
             st.rerun()
